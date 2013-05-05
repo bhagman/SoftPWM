@@ -1,0 +1,28 @@
+#######################################
+# Syntax Coloring Map For SoftPWM
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+SoftPWM	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+SoftPWMSet	KEYWORD2
+SoftPWMSetPercent	KEYWORD2
+SoftPWMSetFadeTime	KEYWORD2
+SoftPWMBegin	KEYWORD2
+SoftPWMEnd	KEYWORD2
+SoftPWMSetPolarity	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+ALL	LITERAL1
+SOFTPWM_NORMAL	LITERAL1
+SOFTPWM_INVERTED	LITERAL1
