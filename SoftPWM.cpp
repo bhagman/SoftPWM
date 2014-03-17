@@ -1,27 +1,35 @@
-/* $Id: SoftPWM.cpp 132 2012-02-14 04:15:05Z bhagman@roguerobotics.com $
-
-  A Software PWM Library
-  
-  Written by Brett Hagman
-  http://www.roguerobotics.com/
-  bhagman@roguerobotics.com
-
-  Minor modification by Paul Stoffregen to support different timers
-
-    This library is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This library is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-*************************************************/
+/*
+|| @author         Brett Hagman <bhagman@wiring.org.co>
+|| @url            http://wiring.org.co/
+|| @url            http://roguerobotics.com/
+||
+|| @description
+|| | A Software PWM Library
+|| | 
+|| | Written by Brett Hagman
+|| | http://www.roguerobotics.com/
+|| | bhagman@roguerobotics.com, bhagman@wiring.org.co
+|| |
+|| | A Wiring (and Arduino) Library, for Atmel AVR8 bit series microcontrollers,
+|| | to produce PWM signals on any arbitrary pin.
+|| | 
+|| | It was originally designed for use controlling the brightness of LEDs, but
+|| | could be adapted to control servos and other low frequency PWM controlled
+|| | devices as well.
+|| | 
+|| | It uses a single hardware timer (Timer 2) on the Atmel microcontroller to
+|| | generate up to 20 PWM channels (your mileage may vary).
+|| | 
+|| #
+||
+|| @license Please see the accompanying LICENSE.txt file for this project.
+||
+|| @notes
+|| | Minor modification by Paul Stoffregen to support different timers.
+|| |
+|| #
+||
+*/
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
