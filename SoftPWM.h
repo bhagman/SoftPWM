@@ -13,7 +13,7 @@
 || | A Wiring (and Arduino) Library, for Atmel AVR8 bit series microcontrollers,
 || | to produce PWM signals on any arbitrary pin.
 || |
-|| | It was originally designed for use controlling the brightness of LEDs, but
+|| | It was originally designed for controlling the brightness of LEDs, but
 || | could be adapted to control servos and other low frequency PWM controlled
 || | devices as well.
 || |
