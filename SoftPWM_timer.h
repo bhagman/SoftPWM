@@ -11,6 +11,12 @@
 ||
 || @license Please see the accompanying LICENSE.txt file for this project.
 ||
+|| @name Software PWM Library support
+|| @type Library support
+|| @target Atmel AVR 8 Bit
+||
+|| @version 1.0.0
+||
 */
 
 #include <avr/io.h>

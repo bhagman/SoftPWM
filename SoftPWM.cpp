@@ -1,5 +1,6 @@
 /*
 || @author         Brett Hagman <bhagman@wiring.org.co>
+|| @contribution   Paul Stoffregen (paul at pjrc dot com)
 || @url            http://wiring.org.co/
 || @url            http://roguerobotics.com/
 ||
@@ -28,6 +29,12 @@
 || | Minor modification by Paul Stoffregen to support different timers.
 || |
 || #
+||
+|| @name Software PWM Library
+|| @type Library
+|| @target Atmel AVR 8 Bit
+||
+|| @version 1.0.0
 ||
 */
 

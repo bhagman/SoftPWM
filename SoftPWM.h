@@ -5,29 +5,37 @@
 ||
 || @description
 || | A Software PWM Library
-|| | 
+|| |
 || | Written by Brett Hagman
 || | http://www.roguerobotics.com/
 || | bhagman@roguerobotics.com, bhagman@wiring.org.co
 || |
 || | A Wiring (and Arduino) Library, for Atmel AVR8 bit series microcontrollers,
 || | to produce PWM signals on any arbitrary pin.
-|| | 
+|| |
 || | It was originally designed for use controlling the brightness of LEDs, but
 || | could be adapted to control servos and other low frequency PWM controlled
 || | devices as well.
-|| | 
+|| |
 || | It uses a single hardware timer (Timer 2) on the Atmel microcontroller to
 || | generate up to 20 PWM channels (your mileage may vary).
-|| | 
+|| |
 || #
 ||
 || @license Please see the accompanying LICENSE.txt file for this project.
+||
+|| @name Software PWM Library
+|| @type Library
+|| @target Atmel AVR 8 Bit
+||
+|| @version 1.0.0
 ||
 */
 
 #ifndef SOFTPWM_H
 #define SOFTPWM_H
+
+#define SOFTPWM_VERSION 10000
 
 #include <stdint.h>
 
