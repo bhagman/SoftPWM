@@ -25,6 +25,8 @@
 // allow certain chips to use different timers
 #if defined(__AVR_ATmega32U4__)
 #define USE_TIMER4_HS // Teensy 2.0 lacks timer2, but has high speed timer4 :-)
+#elif defined(__arm__) && defined(TEENSYDUINO)
+#define USE_INTERVALTIMER  // Teensy 3.x has special interval timers :-)
 #else
 #define USE_TIMER2
 #endif
@@ -52,6 +54,17 @@
   OCR4C  = 0; \
   OCR4C  = (ocr); \
   TIMSK4  = (1 << OCIE4A); \
+})
+#elif defined(USE_INTERVALTIMER)
+#define SOFTPWM_TIMER_INTERRUPT    softpwm_interval_timer
+#ifdef ISR
+#undef ISR
+#endif
+#define ISR(f) void f(void)
+#define SOFTPWM_TIMER_SET(val)
+#define SOFTPWM_TIMER_INIT(ocr) ({\
+  IntervalTimer *t = new IntervalTimer(); \
+  t->begin(softpwm_interval_timer, 1000000.0 / (float)(SOFTPWM_FREQ * 256)); \
 })
 #endif
 
