@@ -1,5 +1,9 @@
 #include <SoftPWM.h>
 
+#ifndef WLED
+#define WLED LED_BUILTIN
+#endif
+
 void setup()
 {
   SoftPWMBegin();
