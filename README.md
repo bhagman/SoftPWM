@@ -4,6 +4,12 @@
 
 ## What's New? ##
 
+Version 1.0.1
+
+* Changes from Paul Stoffregen
+  * Use IntervalTimer on Teensy 3.x
+  * Use LED_BUILTIN for WLED in example
+
 Version 1.0.0
 
 * Initial release
@@ -14,7 +20,7 @@ A Wiring Framework (and Arduino) Library to produce PWM signals on any arbitrary
 
 It was originally designed for use controlling the brightness of LEDs, but could be modified to control servos and other low frequency PWM controlled devices as well.
 
-It uses a single hardware timer (Timer 2) on the microcontroller to generate up to 20 PWM channels.
+It uses a single hardware timer (Timer 2 on AVR, or IntervalTimer on Teensy 3.x) on the microcontroller to generate up to 20 PWM channels.
 
 ----
 

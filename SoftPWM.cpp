@@ -34,7 +34,7 @@
 || @type Library
 || @target Atmel AVR 8 Bit
 ||
-|| @version 1.0.0
+|| @version 1.0.1
 ||
 */
 
