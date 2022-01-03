@@ -44,16 +44,18 @@
 #include "SoftPWM_timer.h"
 
 #if defined(WIRING)
- #include <Wiring.h>
+#include <Wiring.h>
 #elif ARDUINO >= 100
- #include <Arduino.h>
+#include <Arduino.h>
 #else
- #include <WProgram.h>
+#include <WProgram.h>
 #endif
+
+#define HARDRESET(RST) if (RST) { SOFTPWM_TIMER_SET(0); _isr_softcount = 0xff; } 
 
 #if F_CPU
 #define SOFTPWM_FREQ 60UL
-#define SOFTPWM_OCR (F_CPU/(8UL*256UL*SOFTPWM_FREQ))
+#define SOFTPWM_OCR (F_CPU / (8UL * 256UL * SOFTPWM_FREQ))
 #else
 // 130 == 60 Hz (on 16 MHz part)
 #define SOFTPWM_OCR 130
@@ -62,7 +64,7 @@
 volatile uint8_t _isr_softcount = 0xff;
 uint8_t _softpwm_defaultPolarity = SOFTPWM_NORMAL;
 
-typedef struct
+typedef struct soft_pwm_ch_
 {
   // hardware I/O port and pin for this channel
   int8_t pin;
@@ -73,10 +75,14 @@ typedef struct
   uint8_t checkval;
   uint8_t fadeuprate;
   uint8_t fadedownrate;
+  struct soft_pwm_ch_ *next;
+  struct soft_pwm_ch_ *prev;
 } softPWMChannel;
 
 softPWMChannel _softpwm_channels[SOFTPWM_MAXCHANNELS];
 
+struct soft_pwm_ch_ *g_used;
+struct soft_pwm_ch_ *g_free;
 
 // Here is the meat and gravy
 #ifdef WIRING
@@ -85,71 +91,186 @@ void SoftPWM_Timer_Interrupt(void)
 ISR(SOFTPWM_TIMER_INTERRUPT)
 #endif
 {
-  uint8_t i;
+  // uint8_t i;
   int16_t newvalue;
   int16_t direction;
-
-  if(++_isr_softcount == 0)
+  struct soft_pwm_ch_ *l_it = NULL;
+  if (++_isr_softcount == 0)
   {
-    // set all channels high - let's start again
-    // and accept new checkvals
-    for (i = 0; i < SOFTPWM_MAXCHANNELS; i++)
+
+    l_it = g_used;
+    while (l_it)
     {
-      if (_softpwm_channels[i].fadeuprate > 0 || _softpwm_channels[i].fadedownrate > 0)
+
+      if (l_it->fadeuprate > 0 || l_it->fadedownrate > 0)
       {
         // we want to fade to the new value
-        direction = _softpwm_channels[i].pwmvalue - _softpwm_channels[i].checkval;
+        direction = l_it->pwmvalue - l_it->checkval;
 
         // we will default to jumping to the new value
-        newvalue = _softpwm_channels[i].pwmvalue;
+        newvalue = l_it->pwmvalue;
 
-        if (direction > 0 && _softpwm_channels[i].fadeuprate > 0)
+        if (direction > 0 && l_it->fadeuprate > 0)
         {
-          newvalue = _softpwm_channels[i].checkval + _softpwm_channels[i].fadeuprate;
-          if (newvalue > _softpwm_channels[i].pwmvalue)
-            newvalue = _softpwm_channels[i].pwmvalue;
+          newvalue = l_it->checkval + l_it->fadeuprate;
+          if (newvalue > l_it->pwmvalue) {
+            newvalue = l_it->pwmvalue;
+          }
         }
-        else if (direction < 0 && _softpwm_channels[i].fadedownrate > 0)
+        else if (direction < 0 && l_it->fadedownrate > 0)
         {
-          newvalue = _softpwm_channels[i].checkval - _softpwm_channels[i].fadedownrate;
-          if (newvalue < _softpwm_channels[i].pwmvalue)
-            newvalue = _softpwm_channels[i].pwmvalue;
+          newvalue = l_it->checkval - l_it->fadedownrate;
+          if (newvalue < l_it->pwmvalue) {
+            newvalue = l_it->pwmvalue;
+          }
         }
 
-        _softpwm_channels[i].checkval = newvalue;
+        l_it->checkval = newvalue;
       }
-      else  // just set the channel to the new value
-        _softpwm_channels[i].checkval = _softpwm_channels[i].pwmvalue;
+      else {
+        // just set the channel to the new value
+        l_it->checkval = l_it->pwmvalue;
+      }
 
-      // now set the pin high (if not 0)
-      if (_softpwm_channels[i].checkval > 0)  // don't set if checkval == 0
+      // now set the pin low (checkval == 0x00) otherwise high
+      if (l_it->checkval == 0x00)
       {
-        if (_softpwm_channels[i].polarity == SOFTPWM_NORMAL)
-          *_softpwm_channels[i].outport |= _softpwm_channels[i].pinmask;
+        if (l_it->polarity == SOFTPWM_NORMAL)
+          *(l_it->outport) &= ~(l_it->pinmask);
         else
-          *_softpwm_channels[i].outport &= ~(_softpwm_channels[i].pinmask);
+          *(l_it->outport) |= l_it->pinmask;
+      }
+      else
+      {
+        if (l_it->polarity == SOFTPWM_NORMAL)
+          *(l_it->outport) |= l_it->pinmask;
+        else
+          *(l_it->outport) &= ~(l_it->pinmask);
       }
 
+      l_it = l_it->next;
     }
+    return;
   }
+
+  l_it = g_used;
+  while (l_it) {
+    // skip hit on checkval 0 and 255
+    if (l_it->checkval != 0x00 && l_it->checkval != 0xFF)
+    {
+      if (l_it->checkval == _isr_softcount) // if we have hit the width
+      {
+        // turn off the channel
+        if (l_it->polarity == SOFTPWM_NORMAL)
+          *(l_it->outport) &= ~(l_it->pinmask);
+        else
+          *(l_it->outport) |=l_it->pinmask;
+      }
+    }
+    l_it = l_it->next;
+  }
+}
+
+void ch_push(struct soft_pwm_ch_ *&p_head, struct soft_pwm_ch_ *p_item) {
+
+  p_item->next = p_head;
+  p_item->prev = NULL;
+  if (NULL == p_head) {
+     p_head = p_item;
+     return;
+  }
+
+  p_head->prev = p_item;
+  p_head = p_item;
+};
+void ch_remove(struct soft_pwm_ch_ *&p_head, struct soft_pwm_ch_ *p_item)
+{
+
+  if (NULL == p_head)
+  {
+    return;
+  }
+
+  // remove head
+  if (p_head == p_item) {
+
+    p_head = p_item->next;
+    if (NULL != p_head) {
+      p_head->prev = NULL;
+      p_item->next = NULL;
+    }
+
+    return;
+  }
+
+  struct soft_pwm_ch_ *l_prev = p_item->prev;
+  l_prev->next = p_item->next;
+
+  // remove tail
+  if (NULL == p_item->next)
+  {
+    p_item->prev = NULL;
+    return;
+  }
+
+  // remove middle
+  p_item->next->prev = l_prev;
+
+  p_item->prev = NULL;
+  p_item->next = NULL;
+
+  return;
+
+};
+struct soft_pwm_ch_ *ch_pop(struct soft_pwm_ch_ *&p_head)
+{
+  struct soft_pwm_ch_ *l_item = NULL;
+
+  if (NULL == p_head)
+  {
+    return NULL;
+  }
+
+  l_item = p_head;
+  p_head = l_item->next;
+  l_item->next = NULL;
+
+  return l_item;
+};
+struct soft_pwm_ch_ *ch_find(struct soft_pwm_ch_ *p_head, int8_t p_pin)
+{
+
+  uint8_t i = 0;
+  struct soft_pwm_ch_ *l_it = p_head;
 
   for (i = 0; i < SOFTPWM_MAXCHANNELS; i++)
   {
-    if (_softpwm_channels[i].pin >= 0)  // if it's a valid pin
+    if (NULL == l_it)
     {
-      if (_softpwm_channels[i].checkval == _isr_softcount)  // if we have hit the width
-      {
-        // turn off the channel
-        if (_softpwm_channels[i].polarity == SOFTPWM_NORMAL)
-          *_softpwm_channels[i].outport &= ~(_softpwm_channels[i].pinmask);
-        else
-          *_softpwm_channels[i].outport |= _softpwm_channels[i].pinmask;
-      }
+      return NULL;
     }
-  }  
+
+    if (p_pin == l_it->pin)
+    {
+      return l_it;
+    }
+
+    l_it = l_it->next;
+  }
+
+  return NULL;
 }
 
-
+void ch_reset(struct soft_pwm_ch_ *p_ch)
+{
+    p_ch->pin = -1;
+    p_ch->polarity = SOFTPWM_NORMAL;
+    p_ch->outport = 0;
+    p_ch->fadeuprate = 0;
+    p_ch->fadedownrate = 0;
+    // l_ch->next = NULL;
+    // l_ch->prev = NULL;
+}
 
 void SoftPWMBegin(uint8_t defaultPolarity)
 {
@@ -159,125 +280,141 @@ void SoftPWMBegin(uint8_t defaultPolarity)
   // we are looking at about 20 - 30% of CPU time spent in the ISR.
   // At these settings on a 16 MHz part, we will get a PWM period of
   // approximately 60Hz (~16ms).
+  
+  _softpwm_defaultPolarity = defaultPolarity;
 
   uint8_t i;
+  g_free = NULL;
+  g_used = NULL;
+
+
+  for (i = 0; i < SOFTPWM_MAXCHANNELS; i++)
+  {
+    struct soft_pwm_ch_ * l_ch = &_softpwm_channels[i];
+    ch_reset(l_ch);
+    ch_push(g_free, l_ch);
+  }
+
 
 #ifdef WIRING
-  Timer2.setMode(0b010);  // CTC
+  Timer2.setMode(0b010); // CTC
   Timer2.setClockSource(CLOCK_PRESCALE_8);
   Timer2.setOCR(CHANNEL_A, SOFTPWM_OCR);
   Timer2.attachInterrupt(INTERRUPT_COMPARE_MATCH_A, SoftPWM_Timer_Interrupt);
 #else
   SOFTPWM_TIMER_INIT(SOFTPWM_OCR);
 #endif
-
-
-
-  for (i = 0; i < SOFTPWM_MAXCHANNELS; i++)
-  {
-    _softpwm_channels[i].pin = -1;
-    _softpwm_channels[i].polarity = SOFTPWM_NORMAL;
-    _softpwm_channels[i].outport = 0;
-    _softpwm_channels[i].fadeuprate = 0;
-    _softpwm_channels[i].fadedownrate = 0;
-  }
-
-  _softpwm_defaultPolarity = defaultPolarity;
 }
-
 
 void SoftPWMSetPolarity(int8_t pin, uint8_t polarity)
 {
-  uint8_t i;
-
-  if (polarity != SOFTPWM_NORMAL)
+  if (polarity != SOFTPWM_NORMAL) {
     polarity = SOFTPWM_INVERTED;
-
-  for (i = 0; i < SOFTPWM_MAXCHANNELS; i++)
-  {
-    if ((pin < 0 && _softpwm_channels[i].pin >= 0) ||  // ALL pins
-       (pin >= 0 && _softpwm_channels[i].pin == pin))  // individual pin
-    {
-      _softpwm_channels[i].polarity = polarity;
-    }
   }
-}
 
+  struct soft_pwm_ch_ * l_it = NULL;
+  // set individual pins
+  if (pin > 0) {
+    
+    l_it = ch_find(g_used, pin);
+    if (NULL != l_it) {
+      l_it->polarity = polarity;
+    }
+
+    return;
+  }
+
+  // set all used pins
+  l_it = g_used;
+  while (l_it) {
+    l_it->polarity = polarity;
+    l_it = l_it->next;
+  }
+
+  return;
+}
 
 void SoftPWMSetPercent(int8_t pin, uint8_t percent, uint8_t hardset)
 {
   SoftPWMSet(pin, ((uint16_t)percent * 255) / 100, hardset);
 }
 
-
 void SoftPWMSet(int8_t pin, uint8_t value, uint8_t hardset)
 {
-  int8_t firstfree = -1;  // first free index
-  uint8_t i;
-
-  if (hardset)
-  {
-    SOFTPWM_TIMER_SET(0);
-    _isr_softcount = 0xff;
-  }
-
-  // If the pin isn't already set, add it
-  for (i = 0; i < SOFTPWM_MAXCHANNELS; i++)
-  {
-    if ((pin < 0 && _softpwm_channels[i].pin >= 0) ||  // ALL pins
-       (pin >= 0 && _softpwm_channels[i].pin == pin))  // individual pin
-    {
-      // set the pin (and exit, if individual pin)
-      _softpwm_channels[i].pwmvalue = value;
-
-      if (pin >= 0) // we've set the individual pin
+  struct soft_pwm_ch_* l_it  = NULL;
+  // set individual pins
+  if (pin > 0) {
+    l_it = ch_find(g_used, pin);
+    // not found
+    if (NULL == l_it) {
+      l_it = ch_pop(g_free);
+      if (NULL == l_it) {
+        // run out of pins
         return;
+      }
+
+      l_it->pin = pin;
+      l_it->polarity = _softpwm_defaultPolarity;
+      l_it->outport = portOutputRegister(digitalPinToPort(pin));
+      l_it->pinmask = digitalPinToBitMask(pin);
+      l_it->pwmvalue = value;
+      l_it->next = NULL;
+      l_it->prev = NULL;
+
+      if (l_it->polarity == SOFTPWM_NORMAL) {
+        digitalWrite(pin, LOW);
+      } else {
+        digitalWrite(pin, HIGH);
+      }
+
+      pinMode(pin, OUTPUT);
+
+      ch_push(g_used, l_it);
+      
+      HARDRESET(hardset)
+
+      return;
     }
 
-    // get the first free pin if available
-    if (firstfree < 0 && _softpwm_channels[i].pin < 0)
-      firstfree = i;
+    // found, just set the value
+    l_it->pwmvalue = value;
+    HARDRESET(hardset)
+
+    return;
   }
 
-  if (pin >= 0 && firstfree >= 0)
-  {
-    // we have a free pin we can use
-    _softpwm_channels[firstfree].pin = pin;
-    _softpwm_channels[firstfree].polarity = _softpwm_defaultPolarity;
-    _softpwm_channels[firstfree].outport = portOutputRegister(digitalPinToPort(pin));
-    _softpwm_channels[firstfree].pinmask = digitalPinToBitMask(pin);
-    _softpwm_channels[firstfree].pwmvalue = value;
-//    _softpwm_channels[firstfree].checkval = 0;
-    
-    // now prepare the pin for output
-    // turn it off to start (no glitch)
-    if (_softpwm_defaultPolarity == SOFTPWM_NORMAL)
-      digitalWrite(pin, LOW);
-    else
-      digitalWrite(pin, HIGH);
-    pinMode(pin, OUTPUT);
+  // set all used pins
+  l_it = g_used;
+  while (l_it) {
+    l_it->pwmvalue = value;
+    l_it = l_it->next;
   }
+  
+  HARDRESET(hardset)
+
+  return;
 }
 
 void SoftPWMEnd(int8_t pin)
 {
-  uint8_t i;
 
-  for (i = 0; i < SOFTPWM_MAXCHANNELS; i++)
+  struct soft_pwm_ch_ *l_ch = ch_find(g_used, pin);
+  if (NULL == l_ch)
   {
-    if ((pin < 0 && _softpwm_channels[i].pin >= 0) ||  // ALL pins
-       (pin >= 0 && _softpwm_channels[i].pin == pin))  // individual pin
-    {
-      // now disable the pin (put it into INPUT mode)
-      digitalWrite(_softpwm_channels[i].pin, 1);
-      pinMode(_softpwm_channels[i].pin, INPUT);
-
-      // remove the pin
-      _softpwm_channels[i].pin = -1;
-    }
+    // pin not found
+    return;
   }
-}
 
+  ch_remove(g_used, l_ch);
+
+  digitalWrite(l_ch->pin, 1);
+  pinMode(l_ch->pin, INPUT);
+
+  ch_reset(l_ch);
+
+  ch_push(g_free, l_ch);
+
+}
 
 void SoftPWMSetFadeTime(int8_t pin, uint16_t fadeUpTime, uint16_t fadeDownTime)
 {
@@ -287,7 +424,7 @@ void SoftPWMSetFadeTime(int8_t pin, uint16_t fadeUpTime, uint16_t fadeDownTime)
   for (i = 0; i < SOFTPWM_MAXCHANNELS; i++)
   {
     if ((pin < 0 && _softpwm_channels[i].pin >= 0) ||  // ALL pins
-       (pin >= 0 && _softpwm_channels[i].pin == pin))  // individual pin
+        (pin >= 0 && _softpwm_channels[i].pin == pin)) // individual pin
     {
 
       fadeAmount = 0;
@@ -302,7 +439,7 @@ void SoftPWMSetFadeTime(int8_t pin, uint16_t fadeUpTime, uint16_t fadeDownTime)
 
       _softpwm_channels[i].fadedownrate = fadeAmount;
 
-      if (pin >= 0)  // we've set individual pin
+      if (pin >= 0) // we've set individual pin
         break;
     }
   }
